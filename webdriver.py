@@ -18,6 +18,7 @@ class WebDriverManager:
         # 需要抢的课程（列表）
         self.courses = None
         self.course_type = None
+        self.delay = None
         self.load_config(config_path)
 
     def load_config(self, config_path):
@@ -29,6 +30,7 @@ class WebDriverManager:
                 self.password = config.get("password")
                 self.courses = config.get("courses")
                 self.course_type = config.get("course_type")
+                self.delay = config.get("delay")
         except Exception as e:
             print(f"读取配置文件失败: {str(e)}")
             raise
@@ -62,6 +64,9 @@ class WebDriverManager:
                 if input() != "y":
                     self.courses = courses
                     break
+        if not self.delay:
+            print("请输入刷新间隔（秒）:")
+            self.delay = input()
 
     def initialize_driver(self):
         """初始化Edge浏览器驱动"""
@@ -182,7 +187,8 @@ class WebDriverManager:
                             and m_course["course_number"] == kxh
                         ):
                             bkskyl = course.get("bkskyl")
-                            print(f"找到课程: {kch}_{kxh}，剩余名额: {bkskyl}")
+                            kcm = course.get("kcm")
+                            print(f"找到课程: {kcm}（{kch}_{kxh}），剩余名额: {bkskyl}")
                             if bkskyl != 0:
                                 return True
         return False
@@ -223,7 +229,10 @@ class WebDriverManager:
         print("刷新列表")
         try:
             refresh_button = self.driver.find_element(by="id", value="queryButton")
-            refresh_button.click()
+            if False:
+                refresh_button.click()
+            else:
+                self.driver.execute_script("arguments[0].click();", refresh_button)
         except Exception as e:
             print(f"提交选课时出错: {str(e)}")
             raise
@@ -242,7 +251,9 @@ class WebDriverManager:
             self.switch_to_course_frame()
             while True:
                 if not self.capture_and_find_course():
+                    del self.driver.requests
                     self.refresh()
+                    time.sleep(self.delay)
                     continue
                 if self.select_course():
                     self.switch_to_main_frame()
