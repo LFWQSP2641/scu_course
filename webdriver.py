@@ -167,30 +167,40 @@ class WebDriverManager:
             print(f"切换到主iframe时出错: {str(e)}")
             raise
 
+    def capture_and_find_course(self):
+        """捕获并查找课程"""
+        for request in self.driver.requests:
+            if request.response and request.url.endswith("courseList"):
+                course_list = json.loads(request.response.body)
+                course_list = course_list.get("rwXarxkZlList")
+                for course in course_list:
+                    kch = course.get("kch")
+                    kxh = course.get("kxh")
+                    for m_course in self.courses:
+                        if (
+                            m_course["course"] == kch
+                            and m_course["course_number"] == kxh
+                        ):
+                            bkskyl = course.get("bkskyl")
+                            print(f"找到课程: {kch}_{kxh}，剩余名额: {bkskyl}")
+                            if bkskyl != 0:
+                                return True
+        return False
+
     def select_course(self) -> bool:
         """选择课程"""
         result = False
         try:
             for course in self.courses:
                 try:
-                    print(f"选择课程: {course['course']}_{course['course_number']}")
-                    print("开始选课流程")
-                    start_time = time.time()
+                    print(
+                        f"选择课程: {course['course']}_{course['course_number']}\n查找中..."
+                    )
                     course_id = f"{course['course']}_{course['course_number']}"
-                    print(f"生成课程ID耗时: {time.time() - start_time:.2f}秒")
-
                     xpath = f"//input[starts-with(@id, '{course_id}')]"
-                    print(f"生成xpath耗时: {time.time() - start_time:.2f}秒")
-
                     course_checkbox = self.driver.find_element(by="xpath", value=xpath)
-                    print(f"查找复选框耗时: {time.time() - start_time:.2f}秒")
-
                     course_checkbox.click()
-                    print(f"点击复选框耗时: {time.time() - start_time:.2f}秒")
-
                     result = True
-                    end_time = time.time()
-                    print(f"总选课耗时: {end_time - start_time:.2f}秒")
                 except:
                     continue
         except Exception as e:
@@ -231,6 +241,9 @@ class WebDriverManager:
             self.navigate_to_course_selection()
             self.switch_to_course_frame()
             while True:
+                if not self.capture_and_find_course():
+                    self.refresh()
+                    continue
                 if self.select_course():
                     self.switch_to_main_frame()
                     self.submit()
