@@ -16,7 +16,8 @@ class WebDriverManager:
         self.username = None
         self.password = None
         # 需要抢的课程（列表）
-        self.courses = []
+        self.courses = None
+        self.course_type = None
         self.load_config(config_path)
 
     def load_config(self, config_path):
@@ -27,6 +28,7 @@ class WebDriverManager:
                 self.username = config.get("username")
                 self.password = config.get("password")
                 self.courses = config.get("courses")
+                self.course_type = config.get("course_type")
         except Exception as e:
             print(f"读取配置文件失败: {str(e)}")
             raise
@@ -39,22 +41,21 @@ class WebDriverManager:
             self.password = input()
         if not self.courses:
             courses = []
+            print("请输入需要抢的课程界面:")
+            print("1. 方案选课")
+            print("2. 系任选课")
+            print("3. 校任选课")
+            print("4. 自由选课")
+            print("5. 重修选课")
+            print("6. 复修选课")
+            self.course_type = input()
             while True:
                 course = input("请输入需要抢的课程编号:")
                 course_number = input("请输入需要抢的课程序号:")
-                print("请输入需要抢的课程界面:")
-                print("1. 方案选课")
-                print("2. 系任选课")
-                print("3. 校任选课")
-                print("4. 自由选课")
-                print("5. 重修选课")
-                print("6. 复修选课")
-                course_type = input()
                 courses.append(
                     {
                         "course": course,
                         "course_number": course_number,
-                        "course_type": course_type,
                     }
                 )
                 print("是否继续添加课程？(y/n)")
@@ -119,6 +120,14 @@ class WebDriverManager:
             print(f"点击登录按钮时出错: {str(e)}")
             raise
 
+    def check_login(self):
+        """检查是否登录成功"""
+        try:
+            self.driver.find_element(by="id", value="loginButton")
+            return False
+        except:
+            return True
+
     def navigate_to_course_selection(self):
         """导航到选课界面"""
         try:
@@ -126,20 +135,109 @@ class WebDriverManager:
             course_register.click()
             course_register = self.driver.find_element(by="id", value="1002001002")
             course_register.click()
+            element_id = None
+            switcher = {
+                "1": "faxk",
+                "2": "xirxk",
+                "3": "xarxk",
+                "4": "zyxk",
+                "5": "cxxk",
+                "6": "fxxk",
+            }
+            element_id = switcher.get(self.course_type)
+            course_register = self.driver.find_element(by="id", value=element_id)
+            course_register.click()
         except Exception as e:
             print(f"导航到选课界面时出错: {str(e)}")
+            raise
+
+    def switch_to_course_frame(self):
+        """切换到选课iframe"""
+        try:
+            self.driver.switch_to.frame("ifra")
+        except Exception as e:
+            print(f"切换到选课iframe时出错: {str(e)}")
+            raise
+
+    def switch_to_main_frame(self):
+        """切换到主iframe"""
+        try:
+            self.driver.switch_to.default_content()
+        except Exception as e:
+            print(f"切换到主iframe时出错: {str(e)}")
+            raise
+
+    def select_course(self) -> bool:
+        """选择课程"""
+        result = False
+        try:
+            for course in self.courses:
+                try:
+                    print(f"选择课程: {course['course']}_{course['course_number']}")
+                    print("开始选课流程")
+                    start_time = time.time()
+                    course_id = f"{course['course']}_{course['course_number']}"
+                    print(f"生成课程ID耗时: {time.time() - start_time:.2f}秒")
+
+                    xpath = f"//input[starts-with(@id, '{course_id}')]"
+                    print(f"生成xpath耗时: {time.time() - start_time:.2f}秒")
+
+                    course_checkbox = self.driver.find_element(by="xpath", value=xpath)
+                    print(f"查找复选框耗时: {time.time() - start_time:.2f}秒")
+
+                    course_checkbox.click()
+                    print(f"点击复选框耗时: {time.time() - start_time:.2f}秒")
+
+                    result = True
+                    end_time = time.time()
+                    print(f"总选课耗时: {end_time - start_time:.2f}秒")
+                except:
+                    continue
+        except Exception as e:
+            print(f"选择课程时出错: {str(e)}")
+            raise
+        return result
+
+    def submit(self):
+        """提交选课"""
+        print("提交选课")
+        try:
+            submit_button = self.driver.find_element(by="id", value="submitButton")
+            submit_button.click()
+        except Exception as e:
+            print(f"提交选课时出错: {str(e)}")
+            raise
+
+    def refresh(self):
+        """刷新列表"""
+        print("刷新列表")
+        try:
+            refresh_button = self.driver.find_element(by="id", value="queryButton")
+            refresh_button.click()
+        except Exception as e:
+            print(f"提交选课时出错: {str(e)}")
             raise
 
     def run(self):
         """执行完整流程"""
         try:
             self.initialize_driver()
-            self.input_credentials()
-            if self.capture_and_process_captcha():
-                self.verify_captcha()
-                self.input_captcha()
-                self.click_login()
-                self.navigate_to_course_selection()
+            while not self.check_login():
+                self.input_credentials()
+                if self.capture_and_process_captcha():
+                    self.verify_captcha()
+                    self.input_captcha()
+                    self.click_login()
+            self.navigate_to_course_selection()
+            self.switch_to_course_frame()
+            while True:
+                if self.select_course():
+                    self.switch_to_main_frame()
+                    self.submit()
+                    break
+                else:
+                    self.refresh()
+
         except Exception as e:
             print(f"执行过程中出错: {str(e)}")
             raise
@@ -149,7 +247,7 @@ class WebDriverManager:
     def close(self):
         """关闭浏览器"""
         if self.driver:
-            time.sleep(10)
+            input("按回车键关闭浏览器")
             self.driver.quit()
 
 
