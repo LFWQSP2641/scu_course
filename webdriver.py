@@ -178,7 +178,8 @@ class WebDriverManager:
             if request.response and request.url.endswith("courseList"):
                 course_list = json.loads(request.response.body)
                 course_list = course_list.get("rwXarxkZlList")
-                for course in course_list:
+                # 从后往前遍历课程列表
+                for course in reversed(course_list):
                     kch = course.get("kch")
                     kxh = course.get("kxh")
                     for m_course in self.courses:
